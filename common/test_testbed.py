@@ -1,6 +1,7 @@
 """python test_testbed.py  -> energy attribution conserves energy, interpolation hits grid points."""
 
 import itertools
+import json
 import tempfile
 from pathlib import Path
 
@@ -9,6 +10,8 @@ import pandas as pd
 
 from computeModel import MeasuredCompute
 from energy import processRun
+import sys; sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "client"))
+from bench import configKey, doneConfigs
 
 S = 1_000_000_000  # ns
 
@@ -80,7 +83,20 @@ def testInterpolation():
     assert model.capacity["edge"] == 20
 
 
+def testResume():
+    # valid run is skipped; failed run and old rows without the field behave as documented
+    with tempfile.TemporaryDirectory() as d:
+        rows = [{"targetInputTokens": 512, "targetOutputTokens": 128, "concurrentRequests": 5, "requestRate": 0,
+                 "repetitionId": rep, "failedRequests": f} for rep, f in ((0, 0), (1, 2))]
+        rows.append({"targetInputTokens": 128, "targetOutputTokens": 64, "concurrentRequests": 1, "requestRate": 0.0,
+                     "repetitionId": 2})
+        (Path(d) / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+        assert doneConfigs(d) == {configKey(512, 128, 5, 0, 0), configKey(128, 64, 1, 0, 2)}
+        assert doneConfigs(Path(d) / "missing") == set()
+
+
 if __name__ == "__main__":
+    testResume()
     testAttribution()
     testWallEnergy()
     testInterpolation()

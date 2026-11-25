@@ -168,7 +168,10 @@ def main():
     node = json.loads((folder / "node.json").read_text()) if (folder / "node.json").exists() else {}
 
     requestFrames, summaries = [], []
-    for run in runs:
+    excluded = [r for r in runs if r.get("failedRequests", 0) > 0]
+    for r in excluded:
+        print(f"run {r['runId']} excluded: {r['failedRequests']} failed requests (bench.py repeats such runs)")
+    for run in (r for r in runs if r.get("failedRequests", 0) == 0):
         req, summary = processRun(
             run, [r for r in allRequests if r["runId"] == run["runId"]], power, plug, int(args.shift_ms * 1e6)
         )

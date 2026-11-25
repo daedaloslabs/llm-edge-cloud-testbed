@@ -64,6 +64,14 @@ Results go to `results/<edge|cloud>-<INT4|INT8>-<fixed|natural>-<date-time>/` wi
 `runs.jsonl`, `requests.jsonl` and `clientInfo.txt` (settings without the API key, RTT, clock
 status, repository commit). Copy that folder to the edge node for the energy attribution.
 
+Every point is saved as soon as it finishes. A run with failed requests is excluded and repeated
+(up to 3 tries), so each point ends with `REPS` valid repetitions. After a crash or Ctrl+C,
+continue the same folder (only missing points run; the server and power logger must be running):
+
+```bash
+python3 client/run.py --resume <edge|cloud>-<INT4|INT8>-<fixed|natural>-<date-time>
+```
+
 ## Troubleshooting
 
 | Message | Fix |

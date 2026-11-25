@@ -121,9 +121,13 @@ def runConfig(args, cfg, outDir, rng):
     time.sleep(args.cooldown)
     tStart = time.time_ns()
 
+    failed = [0]
+
     def one(i):
         result = sendRequest(args.url, args.model, prompts[i], cfg["outputs"], args.ignore_eos, seedBase + i)
         result.update(runId=runId, requestIndex=i)
+        with lock:
+            failed[0] += result["status"] != "ok"
         with lock, open(outDir / "requests.jsonl", "a") as handle:
             handle.write(json.dumps(result) + "\n")
 
@@ -168,10 +172,26 @@ def runConfig(args, cfg, outDir, rng):
         "tIdleStartNs": tIdleStart,
         "tStartNs": tStart,
         "tEndNs": time.time_ns(),
+        "failedRequests": failed[0],
     }
     with open(outDir / "runs.jsonl", "a") as handle:
         handle.write(json.dumps(run) + "\n")
     return run
+
+
+def configKey(inputs, outputs, concurrency, rate, rep):
+    return (int(inputs), int(outputs), int(concurrency), float(rate), int(rep))
+
+
+def doneConfigs(outDir):
+    """Configurations that already have a valid run (all requests ok) in outDir/runs.jsonl.
+    A run cut short by a crash never reaches runs.jsonl, so it is redone."""
+    path = Path(outDir) / "runs.jsonl"
+    if not path.exists():
+        return set()
+    runs = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    return {configKey(r["targetInputTokens"], r["targetOutputTokens"], r["concurrentRequests"],
+                      r["requestRate"], r["repetitionId"]) for r in runs if r.get("failedRequests", 0) == 0}
 
 
 def intList(text):
@@ -200,6 +220,7 @@ def main():
     p.add_argument("--network-profile", default="none")
     p.add_argument("--rtt-ms", type=float, default=0.0, help="measured client-server RTT (ping)")
     p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--attempts", type=int, default=3, help="tries per configuration if requests fail")
     p.add_argument("--out", default="results")
     args = p.parse_args()
 
@@ -214,10 +235,20 @@ def main():
         )
     ]
     rng.shuffle(configs)  # randomized order: thermal drift does not line up with one variable
+    done = doneConfigs(outDir)
+    if done:
+        print(f"resuming: {len(done)} valid runs already in {outDir}, skipped", flush=True)
 
     for n, cfg in enumerate(configs, 1):
+        if configKey(cfg["inputs"], cfg["outputs"], cfg["concurrency"], cfg["rate"], cfg["rep"]) in done:
+            continue
         print(f"[{n}/{len(configs)}] {cfg}", flush=True)
-        runConfig(args, cfg, outDir, rng)
+        for attempt in range(1, args.attempts + 1):
+            run = runConfig(args, cfg, outDir, rng)
+            if run["failedRequests"] == 0:
+                break
+            print(f"  {run['failedRequests']} failed requests (attempt {attempt}/{args.attempts}), "
+                  f"run {run['runId']} excluded" + (", retrying" if attempt < args.attempts else ""), flush=True)
 
 
 if __name__ == "__main__":

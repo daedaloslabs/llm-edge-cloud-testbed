@@ -98,6 +98,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--check", action="store_true")
     p.add_argument("--quick", action="store_true")
+    p.add_argument("--resume", metavar="NAME", help="continue results/NAME after a crash or stop")
     p.add_argument("--env", default=str(HERE / ".env"))
     args = p.parse_args()
 
@@ -122,6 +123,10 @@ def main():
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
     eos = "fixed" if env["IGNORE_EOS"] == "1" else "natural"
     name = f"pilot-client-{stamp}" if args.quick else f"{env['SERVER_TYPE']}-{env['QUANTIZATION']}-{eos}-{stamp}"
+    if args.resume:
+        name = Path(args.resume).name
+        if not (REPO / "results" / name / "runs.jsonl").exists():
+            sys.exit(f"nothing to resume: results/{name}/runs.jsonl not found")
     out = REPO / "results" / name
     out.mkdir(parents=True, exist_ok=True)
 
@@ -139,15 +144,18 @@ def main():
         ["--warmup", "1", "--cooldown", "2"] if args.quick else [])
 
     info = {k: v for k, v in env.items() if k != "LLM_API_KEY"}
-    (out / "clientInfo.txt").write_text(
-        f"started: {datetime.datetime.now().astimezone().isoformat()}\n"
+    with open(out / "clientInfo.txt", "a", encoding="utf-8") as handle:
+        handle.write(
+        f"{'resumed' if args.resume else 'started'}: {datetime.datetime.now().astimezone().isoformat()}\n"
         f"repo commit: {gitCommit()}\nclient: {platform.platform()} / Python {platform.python_version()}\n"
         f"rttMs: median {rtt:.3f} min {rttMin:.3f} max {rttMax:.3f}\n"
-        f"settings: {json.dumps(info, indent=1)}\n\n{clock}\n", encoding="utf-8")
+        f"settings: {json.dumps(info, indent=1)}\n\n{clock}\n\n")
 
     print(f"running -> {out}")
     childEnv = os.environ | ({"LLM_API_KEY": env["LLM_API_KEY"]} if env.get("LLM_API_KEY") else {})
     code = subprocess.call(command, env=childEnv)
+    if code != 0:
+        print(f"\nstopped early; continue with: python3 client/run.py --resume {name}")
     print(f"\nbench.py finished with code {code}. Next (see README.md, 'After a campaign'):\n"
           f"  copy power.csv (and plug.csv) from the server into {out}\n"
           f"  .venv/bin/python common/energy.py --results {out.relative_to(REPO)}")
