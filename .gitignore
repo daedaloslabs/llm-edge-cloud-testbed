@@ -1,0 +1,8 @@
+# settings with addresses and keys: only the .env.example files are committed
+.env
+# environment, model cache, measurement output (results are archived in the research repo)
+.venv/
+.cache/
+results/
+__pycache__/
+*.pyc

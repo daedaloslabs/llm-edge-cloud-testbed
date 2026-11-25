@@ -1,0 +1,4 @@
+# Serving node (edge and cloud). Same versions on both nodes: part of the methodology.
+vllm==0.33.0
+nvidia-ml-py==13.615.71
+huggingface-hub==2.4.0
