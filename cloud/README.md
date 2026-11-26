@@ -44,15 +44,26 @@ Copy the generated `API_KEY` into `client/.env` as `LLM_API_KEY`. It never leave
 
 ## 3. A campaign
 
-Two SSH sessions (or tmux, so the run survives a dropped connection):
+Run the server and the power logger in tmux, so they survive a dropped SSH connection. The
+session names matter: `client/campaign.sh` switches the model by restarting the session `serve`.
 
 ```bash
-bash cloud/run.sh serve
-bash cloud/run.sh log cloud-INT4-<date>
+tmux new -d -s serve 'bash cloud/run.sh serve'
+tmux new -d -s log 'bash cloud/run.sh log cloud-power-<date>'
+tmux attach -t serve           # watch it; detach with Ctrl+B then D
 ```
 
-Then the client, with `SERVER_TYPE=cloud`, `SERVER_URL=http://<cloud-ip>:8000` and
-`GPU_MODEL=NVIDIA L40S` in `client/.env`. Stop both with Ctrl+C when the client finishes.
+Then on the client, with `SERVER_TYPE=cloud`, `SERVER_URL=http://<cloud-ip>:8000`,
+`LLM_API_KEY`, `GPU_MODEL` (as `nvidia-smi` names it) and `SERVER_SSH=root@<cloud-ip>` in
+`client/.env`:
+
+```bash
+bash client/campaign.sh INT4 INT8
+```
+
+It switches the server to each model, warms it up and runs the full grid, one quantization after
+the other (`client/README.md`, section 3). One power log covers both campaigns. When the client
+prints `all campaigns done`, stop the logger with `tmux kill-session -t log`.
 
 ## 4. Bring the data home, delete the instance
 
