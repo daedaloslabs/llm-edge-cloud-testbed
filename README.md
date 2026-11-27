@@ -49,8 +49,11 @@ Each step is described in the README of its folder.
 
 ## Results
 
-Measurement output goes to `results/` and is not committed here. Finished campaigns are
-archived with the paper material in the research repository.
+Measurement output goes to `results/` and is not committed here. For finished campaigns, the
+processed files (`summary.csv`, `requestLevel.csv`, `runs.jsonl`, `node.json`, `clientInfo.txt`,
+`plug.csv`) are archived in the research repository. The raw `power.csv` and `requests.jsonl` exceed
+the 100 MB file limit of GitHub and stay on the edge node; their checksums are listed in the research
+repository under `results/README.md`.
 
 ## Check
 
